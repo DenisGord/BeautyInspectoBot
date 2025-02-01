@@ -1,84 +1,129 @@
-const GigaChat = require('gigachat-node').GigaChat;
 const TelegramBot = require('node-telegram-bot-api');
+const { analyzeIngredientsOnText, sendLongMessage, splitMessage } = require('./helpers')
+const { createWorker } = require('tesseract.js');
+const Tesseract = require('tesseract.js');
+const axios = require('axios');
+
 require('dotenv').config()
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-
+const worker = createWorker();
+//Обрбаботчик команд
 bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'Привет! Пришли мне список ингредиентов косметического средства, и я их проанализирую.');
-});
+  const { id } = msg.chat
+  bot.sendMessage(id, `Привет ${msg.from.first_name}! Пришли мне список ингредиентов косметического средства или фотогравию состава, и я их проанализирую.`, {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "текст 💬",
+            callback_data: 'text'
+          },
+          {
+            text: "фото 📸",
+            callback_data: 'img'
+          }
+        ]
+      ]
+    }
+  })
+})
 
-// Обработчик текстовых сообщений
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text;
+bot.onText(/\/analyze_text/, (msg) => {
+  const { id } = msg.chat
+  bot.sendMessage(id, `Пришли мне список ингредиентов косметического средства и я их проанализирую.`);
+})
 
-  //TODO надо разобраться как отправлять фото в гигачат
+bot.onText(/\/analyze_photo/, (msg) => {
+  const { id } = msg.chat
+  bot.sendMessage(id, `Пришли мне фотографию состава косметического средства и я их проанализирую.`);
+})
 
-  // if(msg?.photo){
-  //   await addImg(msg.photo[0].file_id)
-  // }
+bot.on('photo', async (msg) => {
+  const { id } = msg.chat;
+  const fileId = msg.photo[msg.photo.length - 1].file_id;
 
   try {
-    const analysis = await analyzeIngredients(text);
-    //TODO эту ебалу исправить сейчас отвечает только когда уже есть ответ  должна сразу это делать
-    analysis.length && bot.sendMessage(chatId, "Выполняем анализ вашего средства ✅", { parse_mode: 'Markdown' })
-    const length = analysis.length % 4095 ? analysis.length / 4095 + 1 : analysis.length / 4095
+    bot.sendMessage(id, "Выполняем анализ вашего средства ✅", { parse_mode: 'Markdown' })
 
+    // Скачивание фото
+    const fileLink = await bot.getFileLink(fileId);
+    const imageResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
 
-    for (let i = 0; i < length; i++) {
-      const sendText = analysis.slice(i * 4095, i * 4095 + 4095)
-      sendText && await bot.sendMessage(chatId, sendText, { parse_mode: 'Markdown' })
+    // Распознавание текста с помощью Tesseract
+    const { data: { text } } = await Tesseract.recognize(
+      imageResponse.data, // Буфер изображения
+      'rus+eng', // Языки для распознавания
+    );
+
+    if (!text) {
+      throw new Error('Текст не распознан');
     }
+
+    // Анализ текста с помощью GigaChat
+    const analysis = await analyzeIngredientsOnText(text);
+    const messages = splitMessage(analysis);
+    for (const message of messages) {
+      await bot.sendMessage(id, message, { parse_mode: 'Markdown' });
+    }
+    // sendLongMessage(analysis, bot, id)
+
   } catch (error) {
     console.error('Ошибка:', error);
-    bot.sendMessage(chatId, 'Произошла ошибка при анализе. Попробуйте позже.');
+    bot.sendMessage(id, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз.');
   }
 });
 
-async function addImg(file){
-  const client = new GigaChat(GIGACHAT_API_KEY);
-  await client.createToken()
+//Обработчик квери команд
 
-  const response = await client.completion({
-    model: "GigaChat:latest",
-    messages: [
-      {
-        role: "user",
-        content: 'определи состав косметологического средства на изображении и опиши ингридиенты',
-        file
-      }
-    ]
-  })
+bot.on('callback_query', query => {
+  const { id } = query.message.chat
 
-  console.log(response.choices[0].message.content, 'content')
-}
+  switch (query.data) {
+    case 'text':
+      break;
+    case "img":
+      break;
+  }
+})
 
-//TODO надо поправить данную функцию перывым делом надо проверить что запрос соответствует анализу кос.средства  
+// Обработчик текстовых сообщений
+bot.on('message', async (msg) => {
+  const { id } = msg.chat;
+  const text = msg.text;
+  //костыль чтобы не реагировать на команды
+  if (text && text?.[0] !== '/') {
+    bot.sendMessage(id, "Выполняем анализ вашего средства ✅", { parse_mode: 'Markdown' })
 
-async function analyzeIngredients(ingredients) {
-  const prompt = `Если запрос связан с анализом косметологического средства то:Проанализируй состав косметического средства. Для каждого ингредиента:
-1. Определи тип компонента
-2. Оцени потенциальную опасность
-3. Отметь полезные ингридиенты зеленой галочкой ✅ а вредные красным крестом ❌
-4. Дай краткое пояснение
+    try {
+      const analysis = await analyzeIngredientsOnText(text);
+      sendLongMessage(analysis, bot, id)
+    } catch (error) {
+      console.error('Ошибка:', error);
+      bot.sendMessage(id, 'Произошла ошибка при анализе. Попробуйте позже.');
+    }
+  }
 
-Состав: ${ingredients} инача ответь что можешь только проверять составы косметологических средств`;
+});
 
-  const client = new GigaChat(process.env.GIGACHAT_API_KEY);
-  await client.createToken()
+// async function addImg(file) {
+//   const client = new GigaChat(GIGACHAT_API_KEY);
+//   await client.createToken()
 
-  const response = await client.completion({
-    model: "GigaChat:latest",
-    messages: [
-      {
-        role: "user",
-        content: prompt
-      }
-    ]
-  })
-  return response.choices[0].message.content
-}
+//   const response = await client.completion({
+//     model: "GigaChat:latest",
+//     messages: [
+//       {
+//         role: "user",
+//         content: 'определи состав косметологического средства на изображении и опиши ингридиенты',
+//         file,
+//         image: file
+//       }
+//     ]
+//   })
+
+//   console.log(response.choices[0].message.content, 'content')
+// }
+
 
 console.log('Бот запущен...');

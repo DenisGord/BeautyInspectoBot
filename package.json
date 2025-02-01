@@ -14,7 +14,7 @@
     "dotenv": "^16.4.7",
     "gigachat-node": "^2.1.0",
     "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.80.1"
+    "tesseract.js": "^6.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
