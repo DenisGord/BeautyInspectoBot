@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
@@ -15,5 +15,8 @@
     "gigachat-node": "^2.1.0",
     "node-telegram-bot-api": "^0.66.0",
     "openai": "^4.80.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
   }
 }

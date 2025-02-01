@@ -22,6 +22,7 @@ bot.on('message', async (msg) => {
 
   try {
     const analysis = await analyzeIngredients(text);
+    //TODO эту ебалу исправить сейчас отвечает только когда уже есть ответ  должна сразу это делать
     analysis.length && bot.sendMessage(chatId, "Выполняем анализ вашего средства ✅", { parse_mode: 'Markdown' })
     const length = analysis.length % 4095 ? analysis.length / 4095 + 1 : analysis.length / 4095
 
@@ -57,13 +58,13 @@ async function addImg(file){
 //TODO надо поправить данную функцию перывым делом надо проверить что запрос соответствует анализу кос.средства  
 
 async function analyzeIngredients(ingredients) {
-  const prompt = `Проанализируй состав косметического средства. Для каждого ингредиента:
+  const prompt = `Если запрос связан с анализом косметологического средства то:Проанализируй состав косметического средства. Для каждого ингредиента:
 1. Определи тип компонента
 2. Оцени потенциальную опасность
 3. Отметь полезные ингридиенты зеленой галочкой ✅ а вредные красным крестом ❌
 4. Дай краткое пояснение
 
-Состав: ${ingredients}`;
+Состав: ${ingredients} инача ответь что можешь только проверять составы косметологических средств`;
 
   const client = new GigaChat(process.env.GIGACHAT_API_KEY);
   await client.createToken()
