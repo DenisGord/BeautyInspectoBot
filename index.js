@@ -1,13 +1,12 @@
 const TelegramBot = require('node-telegram-bot-api');
-const { analyzeIngredientsOnText, sendLongMessage, splitMessage } = require('./helpers')
-const { createWorker } = require('tesseract.js');
+const { analyzeIngredientsOnText, splitMessage } = require('./helpers')
 const Tesseract = require('tesseract.js');
 const axios = require('axios');
-
+const cheerio = require('cheerio');
 require('dotenv').config()
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-const worker = createWorker();
+
 //Обрбаботчик команд
 bot.onText(/\/start/, (msg) => {
   const { id } = msg.chat
@@ -95,9 +94,25 @@ bot.on('message', async (msg) => {
   if (text && text?.[0] !== '/') {
     bot.sendMessage(id, "Выполняем анализ вашего средства ✅", { parse_mode: 'Markdown' })
 
+    if (text.startsWith('https://goldapple.ru')) {
+      const ingredients = await getProductIngredients(text);
+      try {
+        const analysis = await analyzeIngredientsOnText(ingredients);
+        const messages = splitMessage(analysis);
+        for (const message of messages) {
+          await bot.sendMessage(id, message, { parse_mode: 'Markdown' });
+        }
+      } catch (error) {
+        console.error('Ошибка:', error);
+        bot.sendMessage(id, 'Произошла ошибка при анализе. Попробуйте позже.');
+      }
+    }
     try {
       const analysis = await analyzeIngredientsOnText(text);
-      sendLongMessage(analysis, bot, id)
+      const messages = splitMessage(analysis);
+      for (const message of messages) {
+        await bot.sendMessage(id, message, { parse_mode: 'Markdown' });
+      }
     } catch (error) {
       console.error('Ошибка:', error);
       bot.sendMessage(id, 'Произошла ошибка при анализе. Попробуйте позже.');
@@ -105,6 +120,28 @@ bot.on('message', async (msg) => {
   }
 
 });
+
+const getProductIngredients = async (url) => {
+  try {
+    // Загружаем HTML-код страницы
+    const { data: html } = await axios.get(url);
+
+    // Парсим HTML с помощью Cheerio
+    const $ = cheerio.load(html);
+
+    // Ищем блок с составом (пример для «Золотое Яблоко»)
+    const ingredients = $('[text="состав"] > div').text() // Уточните селектор для состава
+ 
+    if (!ingredients) {
+      throw new Error('Состав не найден на странице');
+    }
+
+    return ingredients;
+  } catch (error) {
+    console.error('Ошибка при получении состава:', error);
+    throw error;
+  }
+};
 
 // async function addImg(file) {
 //   const client = new GigaChat(GIGACHAT_API_KEY);
