@@ -15,7 +15,7 @@ const analyzeIngredientsOnText = async (ingredients) => {
     
     3. *Компоненты:*  
        - Перечисли все ингредиенты из состава.  
-       - Для каждого ингредиента добавь краткое описание его функции (например, "Для глубокого очищения и отшелушивания").  
+       - Обящательно для каждого ингредиента добавь краткое описание его функции (например, "Для глубокого очищения и отшелушивания").  
     
     4. *Плюсы ✅:*  
        - Перечисли полезные ингредиенты, используя эмоджи зеленой галочки ✅.  
@@ -52,15 +52,6 @@ const analyzeIngredientsOnText = async (ingredients) => {
   return response.choices[0].message.content
 }
 
-const sendLongMessage = async (text, bot, chatId) => {
-  const length = text.length % 4095 ? text.length / 4095 + 1 : text.length / 4095
-
-  for (let i = 0; i < length; i++) {
-    const sendText = text.slice(i * 4095, i * 4095 + 4095)
-    sendText && await bot.sendMessage(chatId, sendText, { parse_mode: "Markdown" })
-  }
-}
-
 const splitMessage = (text, maxLength = 4096) => {
   const messages = [];
   while (text.length > 0) {
@@ -70,7 +61,7 @@ const splitMessage = (text, maxLength = 4096) => {
   return messages;
 };
 
-const getProductIngredients = async (url) => {
+const getProductIngredients = async (url, id, bot) => {
   try {
     // Загружаем HTML-код страницы
     const { data: html } = await axios.get(url);
@@ -88,7 +79,7 @@ const getProductIngredients = async (url) => {
 
     return { ingredients, brand, name };
   } catch (error) {
-    console.error('Ошибка при получении состава:', error);
+    bot.sendMessage(id, 'Произошла ошибка при получении состава');
     throw error;
   }
 }
@@ -118,10 +109,7 @@ const photoAnalyze = async (msg, bot) => {
     for (const message of messages) {
       await bot.sendMessage(id, message, { parse_mode: 'Markdown' });
     }
-    // sendLongMessage(analysis, bot, id)
-
   } catch (error) {
-    console.error('Ошибка:', error);
     bot.sendMessage(id, 'Произошла ошибка при обработке вашего запроса. Попробуйте ещё раз.');
   }
 }
@@ -138,4 +126,4 @@ const textAnalyze = async (text, bot, id, name) => {
   }
 }
 
-module.exports = { analyzeIngredientsOnText, sendLongMessage, splitMessage, getProductIngredients, photoAnalyze, textAnalyze }
+module.exports = { analyzeIngredientsOnText, splitMessage, getProductIngredients, photoAnalyze, textAnalyze }

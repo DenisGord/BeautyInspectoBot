@@ -12,7 +12,7 @@ bot.onText(/\/start/, (msg) => {
   
 __Ты можешь прислать мне:__
 
-🔗 ссылку на продукт из золотого яблока
+🍏 ссылку на продукт из золотого яблока
 
 📝 список ингредиентов косметического средства 
 
@@ -34,24 +34,25 @@ bot.on('message', async (msg) => {
   const { id } = msg.chat;
   const text = msg.text;
   const photo = msg.photo
-  if (text && text[0] !== '/') {
+  if ((text && text[0] !== '/') || photo) {
     bot.sendMessage(id, "Выполняем анализ вашего средства ✅", { parse_mode: 'Markdown' })
-
     switch (true) {
       case Boolean(photo):
         photoAnalyze(msg, bot)
         break;
-      case text.startsWith('https://goldapple.ru'):
-        const { ingredients, brand, name } = await getProductIngredients(text)
-        // const price = await getProductIngredients(text, '[itemprop="priceSpecification"] > div')
-        textAnalyze(ingredients, bot, id, brand + name)
+      case text.includes('https://goldapple.ru'):
+        const findUrl = text.split(' ').find(i => i.startsWith('https://goldapple.ru'))
+        const { ingredients, brand, name } = await getProductIngredients(findUrl, id, bot)
+        textAnalyze(ingredients.replace(/[^a-zA-Zа-яА-Я0-9\s,.]/g, ''), bot, id, (brand.trim() + ' ' + name.trim()).replace(/[^a-zA-Zа-яА-Я0-9\s,.]/g, ''))
         break;
       case text && text?.[0] !== '/':
-        textAnalyze(text, bot, id)
+        textAnalyze(text.replace(/[^a-zA-Zа-яА-Я0-9\s,.]/g, ''), bot, id)
         break;
     }
   }
 });
+
+
 
 
 console.log('Бот запущен...');
